@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mi Horario</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <h1>📅 Mi Horario Semanal</h1>
+
+  <div class="controls" role="form" aria-label="Constructor de horario">
+    <label for="periodo">Periodo:</label>
+    <select id="periodo">
+      <option value="1">1º (08:30 - 09:30)</option>
+      <option value="2">2º (09:40 - 10:40)</option>
+      <option value="3">3º (10:50 - 11:50)</option>
+      <option value="4">4º (12:00 - 13:00)</option>
+      <option value="5">5º (14:30 - 15:30)</option>
+      <option value="6">6º (15:40 - 16:40)</option>
+      <option value="7">7º (16:50 - 17:50)</option>
+      <option value="8">8º (18:00 - 19:00)</option>
+    </select>
+
+    <label for="dia">Día:</label>
+    <select id="dia">
+      <option value="1">Lunes</option>
+      <option value="2">Martes</option>
+      <option value="3">Miércoles</option>
+      <option value="4">Jueves</option>
+      <option value="5">Viernes</option>
+    </select>
+
+    <label for="tipo">Tipo:</label>
+    <select id="tipo">
+      <option value="ramo">Ramo</option>
+      <option value="ayudantia">Ayudantía</option>
+      <option value="otro">Otro</option>
+    </select>
+
+    <label id="label-color">Color (solo Ramo):</label>
+    <div id="paleta-colores">
+      <button class="color-btn selected" style="background-color:#ffb3ba" data-color="#ffb3ba"></button>
+      <button class="color-btn" style="background-color:#ffdfba" data-color="#ffdfba"></button>
+      <button class="color-btn" style="background-color:#ffffba" data-color="#ffffba"></button>
+      <button class="color-btn" style="background-color:#baffc9" data-color="#baffc9"></button>
+      <button class="color-btn" style="background-color:#bae1ff" data-color="#bae1ff"></button>
+      <button class="color-btn" style="background-color:#e0bbff" data-color="#e0bbff"></button>
+    </div>
+
+    <label for="texto">Nombre:</label>
+    <input type="text" id="texto" placeholder="Nombre del Ramo"/>
+
+    <label for="modulo" id="label-modulo">Módulo (solo Ramo):</label>
+    <input type="text" id="modulo" placeholder="Módulo"/>
+
+    <label for="sala" id="label-sala">Sala:</label>
+    <input type="text" id="sala" placeholder="Sala"/>
+
+    <button id="btn-agregar" type="button">Agregar</button>
+    <button id="btn-eliminar" type="button">Eliminar Celda</button>
+    <button id="btn-limpiar" type="button">Limpiar Horario</button>
+    <button id="btn-guardar" type="button">Guardar Horario</button>
+    <button id="btn-exportar" type="button">Exportar PNG</button>
+    <button id="btn-xlsx-exportar" type="button">Exportar XLSX</button>
+    <input type="file" id="btn-xlsx-importar" style="display:none"/>
+    <button id="btn-xlsx-importar-trigger" type="button">Importar XLSX</button>
+  </div>
+
+  <div id="tabla-horario">
+    <table>
+      <thead>
+        <tr>
+          <th>Periodo</th>
+          <th>Lunes</th>
+          <th>Martes</th>
+          <th>Miércoles</th>
+          <th>Jueves</th>
+          <th>Viernes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr data-periodo="1"><td>1º<br>08:30 - 09:30</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr data-periodo="2"><td>2º<br>09:40 - 10:40</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr data-periodo="3"><td>3º<br>10:50 - 11:50</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr data-periodo="4"><td>4º<br>12:00 - 13:00</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr class="almuerzo"><td colspan="6">Almuerzo</td></tr>
+        <tr data-periodo="5"><td>5º<br>14:30 - 15:30</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr data-periodo="6"><td>6º<br>15:40 - 16:40</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr data-periodo="7"><td>7º<br>16:50 - 17:50</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr data-periodo="8"><td>8º<br>18:00 - 19:00</td><td></td><td></td><td></td><td></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+  <script>
+    const STORAGE_KEY="ramoColors";
+    const COLOR_KEY="horarioData";
+    const loadColorMap=()=>JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}");
+    const saveColorMap=map=>localStorage.setItem(STORAGE_KEY,JSON.stringify(map));
+    const normalizeName=s=>s.trim().toLowerCase();
+
+    function getContrastColor(hex){
+      let h=hex.replace("#","");
+      if(h.length===3) h=h.split("").map(c=>c+c).join("");
+      const r=parseInt(h.substring(0,2),16);
+      const g=parseInt(h.substring(2,4),16);
+      const b=parseInt(h.substring(4,6),16);
+      return (r*299+g*587+b*114)/1000>=128?"#000":"#fff";
+    }
+
+    let colorSeleccionado="#ffb3ba";
+    document.querySelectorAll(".color-btn").forEach(btn=>{
+      btn.addEventListener("click",()=>{
+        document.querySelectorAll(".color-btn").forEach(b=>b.classList.remove("selected"));
+        btn.classList.add("selected");
+        colorSeleccionado=btn.dataset.color;
+      });
+    });
+
+    function toggleCamposSegunTipo(){
+      const tipo=document.getElementById("tipo").value;
+      const labelModulo=document.getElementById("label-modulo");
+      const inputModulo=document.getElementById("modulo");
+      const labelSala=document.getElementById("label-sala");
+      const inputSala=document.getElementById("sala");
+      const labelColor=document.getElementById("label-color");
+      const paleta=document.getElementById("paleta-colores");
+
+      if(tipo==="ramo"){
+        labelModulo.style.display="inline-block"; inputModulo.style.display="inline-block";
+        labelSala.style.display="inline-block"; inputSala.style.display="inline-block";
+        labelColor.style.display="inline-block"; paleta.style.display="inline-flex";
+      } else if(tipo==="ayudantia"){
+        labelModulo.style.display="none"; inputModulo.style.display="none";
+        labelSala.style.display="inline-block"; inputSala.style.display="inline-block";
+        labelColor.style.display="none"; paleta.style.display="none";
+      } else {
+        labelModulo.style.display="none"; inputModulo.style.display="none";
+        labelSala.style.display="none"; inputSala.style.display="none";
+        labelColor.style.display="none"; paleta.style.display="none";
+      }
+    }
+
+    function autoloadRamoColorFromName(){
+      if(document.getElementById("tipo").value!=="ramo") return;
+      const nombre=normalizeName(document.getElementById("texto").value);
+      if(!nombre) return;
+      const map=loadColorMap();
+      if(map[nombre]) colorSeleccionado=map[nombre];
+    }
+
+    function agregarClase(){
+      const periodo=document.getElementById("periodo").value;
+      const dia=parseInt(document.getElementById("dia").value,10);
+      const tipo=document.getElementById("tipo").value;
+      const texto=document.getElementById("texto").value.trim();
+      const modulo=document.getElementById("modulo").value.trim();
+      const sala=document.getElementById("sala").value.trim();
+
+      const fila=document.querySelector(`tr[data-periodo='${periodo}']`);
+      if(!fila){ alert("No se encontró la fila"); return; }
+      const celda=fila.cells[dia];
+      if(!celda){ alert("No se encontró la celda"); return; }
+
+      let textoCelda="";
+      if(tipo==="ramo"){
+        if(!texto||!modulo||!sala){ alert("Completa nombre, módulo y sala"); return; }
+        textoCelda=`${texto}\n${modulo}\n${sala}`;
+        celda.style.backgroundColor=colorSeleccionado;
+        celda.style.color="#000";
+        celda.style.whiteSpace="pre-line";
+        const map=loadColorMap(); map[normalizeName(texto)]=colorSeleccionado; saveColorMap(map);
+      } else if(tipo==="ayudantia"){
+        if(!sala){ alert("Ingresa sala"); return; }
+        textoCelda=sala;
+        celda.style.backgroundColor="#43a047";
+        celda.style.color=getContrastColor("#43a047");
+        celda.style.whiteSpace="pre-line";
+      } else {
+        if(!texto){ alert("Ingresa texto"); return; }
+        textoCelda=texto;
+        celda.style.backgroundColor="#757575";
+        celda.style.color="#000";
+        celda.style.whiteSpace="pre-line";
+      }
+      celda.textContent=textoCelda;
+    }
+
+    function eliminarCelda(){
+      const periodo=document.getElementById("periodo").value;
+      const dia=parseInt(document.getElementById("dia").value,10);
+      const fila=document.querySelector(`tr[data-periodo='${periodo}']`);
+      if(!fila) return;
+      const celda=fila.cells[dia];
+      if(!celda) return;
+      celda.textContent=""; celda.removeAttribute("style");
+    }
+
+    function guardarHorario(){
+      const data={};
+      document.querySelectorAll("#tabla-horario tr[data-periodo]").forEach(fila=>{
+        const periodo=fila.dataset.periodo; data[periodo]=[];
+        for(let i=1;i<=5;i++){
+          const celda=fila.cells[i];
+          data[periodo].push({
+            texto: celda.textContent,
+            bg: celda.style.backgroundColor,
+            color: celda.style.color
+          });
+        }
+      });
+      localStorage.setItem(COLOR_KEY,JSON.stringify(data));
+      alert("Horario guardado ✅");
+    }
+
+    function cargarHorario(){
+      const data=JSON.parse(localStorage.getItem(COLOR_KEY)||"{}");
+      Object.keys(data).forEach(periodo=>{
+        const fila=document.querySelector(`tr[data-periodo='${periodo}']`);
+        if(!fila) return;
+        data[periodo].forEach((celdaData,i)=>{
+          const celda=fila.cells[i+1];
+          if(!celdaData) return;
+          celda.textContent=celdaData.texto;
+          celda.style.backgroundColor=celdaData.bg;
+          celda.style.color=celdaData.color;
+          celda.style.whiteSpace="pre-line";
+        });
+      });
+    }
+
+    function limpiarHorario(){
+      if(!confirm("¿Seguro que deseas limpiar todo el horario?")) return;
+      document.querySelectorAll("#tabla-horario tr[data-periodo]").forEach(fila=>{
+        for(let i=1;i<=5;i++){
+          const celda=fila.cells[i]; celda.textContent=""; celda.removeAttribute("style");
+        }
+      });
+      localStorage.removeItem(COLOR_KEY);
+    }
+
+    function exportarPNG(){
+      html2canvas(document.getElementById("tabla-horario")).then(canvas=>{
+        const link=document.createElement("a");
+        link.download="horario.png";
+        link.href=canvas.toDataURL();
+        link.click();
+      });
+    }
+
+    function exportarXLSX(){
+      const wb=XLSX.utils.book_new();
+      const ws_data=[["Periodo","Lunes","Martes","Miércoles","Jueves","Viernes"]];
+      document.querySelectorAll("#tabla-horario tr[data-periodo]").forEach(fila=>{
+        const filaData=[fila.cells[0].textContent];
+        for(let i=1;i<=5;i++) filaData.push(fila.cells[i].textContent);
+        ws_data.push(filaData);
+      });
+      const ws=XLSX.utils.aoa_to_sheet(ws_data);
+      XLSX.utils.book_append_sheet(wb,ws,"Horario");
+      XLSX.writeFile(wb,"horario.xlsx");
+    }
+
+    function importarXLSX(file){
+      const reader=new FileReader();
+      reader.onload=e=>{
+        const data=new Uint8Array(e.target.result);
+        const wb=XLSX.read(data,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const json=XLSX.utils.sheet_to_json(ws,{header:1});
+        json.slice(1).forEach((filaData,i)=>{
+          const fila=document.querySelectorAll("#tabla-horario tr[data-periodo]")[i];
+          if(!fila) return;
+          filaData.slice(1,6).forEach((txt,j)=>{
+            const celda=fila.cells[j+1];
+            celda.textContent=txt||"";
+            celda.removeAttribute("style");
+          });
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // Eventos
+    document.getElementById("tipo").addEventListener("change", toggleCamposSegunTipo);
+    document.getElementById("texto").addEventListener("input", autoloadRamoColorFromName);
+    document.getElementById("btn-agregar").addEventListener("click", agregarClase);
+    document.getElementById("btn-eliminar").addEventListener("click", eliminarCelda);
+    document.getElementById("btn-guardar").addEventListener("click", guardarHorario);
+    document.getElementById("btn-limpiar").addEventListener("click", limpiarHorario);
+    document.getElementById("btn-exportar").addEventListener("click", exportarPNG);
+    document.getElementById("btn-xlsx-exportar").addEventListener("click", exportarXLSX);
+    document.getElementById("btn-xlsx-importar-trigger").addEventListener("click",()=>document.getElementById("btn-xlsx-importar").click());
+    document.getElementById("btn-xlsx-importar").addEventListener("change",e=>importarXLSX(e.target.files[0]));
+
+    toggleCamposSegunTipo();
+    cargarHorario();
+  </script>
+</body>
+</html>
